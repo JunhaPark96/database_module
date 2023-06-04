@@ -11,7 +11,7 @@ REM  최초작성일   : 2023-06-03,
 REM  수정사항
 REM               23/06/03  1 insert, update, delete procedure 구현
 REM                         2 delete procedure 내부에 trigger 구현하였다가 비효율적이라 판단하여 외부에 따로 생성
-REM               23/04/16  1 age 컬럼 삭제
+REM               23/06/04  1 write_log 작성. 각 procedure에 예외 처리
 REM  *********************************************************************************************************** 
 
 --------------------------------------------------------------------------------
@@ -68,10 +68,14 @@ as
         -- 회원 가입 후 오류가 없으면 즉시 커밋
         commit;
     exception
-        -- 중복 값에 대한 예외 핸들링
+         -- 중복 값에 대한 예외 핸들링
         when dup_val_on_index then
             write_log('insert_cust', 'ID 중복 발생', sqlerrm);
-            raise_application_error(-20001, '고객 ID가 중복입니다');
+            raise_application_error(-20001, '고객 ID 중복');
+        -- 입력값 제약사항에 대한 예외 핸들링 추가
+        when value_error then
+            write_log('insert_cust', '데이터 형식 오류', sqlerrm);
+            raise_application_error(-20003, '데이터 형식 오류');
         when others then
             write_log('insert_cust', '가입 중 오류발생', sqlerrm);
             dbms_output.put_line('회원 가입 중 오류: ' || sqlerrm);
@@ -117,12 +121,16 @@ as
             where id = p_id;
             commit;
         else
-            raise_application_error(-20002, '존재하지 않는 고객 ID입니다');
+            raise_application_error(-20002, '존재하지 않는 고객 ID');
         end if;
     
         close customer_cur;
     
     exception
+        -- 입력값 제약사항에 대한 예외 핸들링 추가
+        when value_error then
+            write_log('update_cust', '데이터 형식 오류', sqlerrm);
+            raise_application_error(-20003, '데이터 형식 오류');
         when others then
             write_log('update_cust', '갱신 중 오류발생', sqlerrm);
             rollback;
@@ -144,9 +152,11 @@ as
         end if;
         -- 
         commit;
-
     exception
-        
+        -- 입력값 제약사항에 대한 예외 핸들링 추가
+        when value_error then
+            write_log('delete_cust', '데이터 형식 오류', sqlerrm);
+            raise_application_error(-20003, '데이터 형식 오류');
         when others then
             write_log('delete_cust', '삭제 중 오류발생', sqlerrm);
             -- 예외 발생시 롤백을 수행하고, 발생한 예외를 다시 던지기
