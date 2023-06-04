@@ -1,38 +1,38 @@
 select * from customer;
 
--- íšŒì›ê´€ë¦¬í•˜ëŠ” procedure 3ê°€ì§€
--- ì •ë³´ì²˜ë¦¬ cursor ìƒì„±
--- íšŒì› íƒˆí‡´ trigger -> old_customer í…Œì´ë¸” ìƒì„±
--- íŠ¸ëœì­ì…˜ ì œì–´, ì˜ˆì™¸ ê´€ë¦¬, autonomous 
--- ê°€ì… íƒˆí‡´ ë³€ê²½ê´€ë ¨ ë¡œê·¸ í”„ë¡œì‹œì € ìƒì„± write_log, autonomous
+-- È¸¿ø°ü¸®ÇÏ´Â procedure 3°¡Áö
+-- Á¤º¸Ã³¸® cursor »ı¼º
+-- È¸¿ø Å»Åğ trigger -> old_customer Å×ÀÌºí »ı¼º
+-- Æ®·£Àè¼Ç Á¦¾î, ¿¹¿Ü °ü¸®, autonomous 
+-- °¡ÀÔ Å»Åğ º¯°æ°ü·Ã ·Î±× ÇÁ·Î½ÃÀú »ı¼º write_log, autonomous
 
 REM  ***********************************************************************************************************
-REM  SCRIPT ìš©ë„ : 
-REM  ì‘ì„±ì      : 2360340009 ë°•ì¤€í•˜
-REM  ìµœì´ˆì‘ì„±ì¼   : 2023-06-03, 
-REM  ìˆ˜ì •ì‚¬í•­
-REM               23/06/03  1 insert, update, delete procedure êµ¬í˜„
-REM                         2 delete procedure ë‚´ë¶€ì— trigger êµ¬í˜„í•˜ì˜€ë‹¤ê°€ ë¹„íš¨ìœ¨ì ì´ë¼ íŒë‹¨í•˜ì—¬ ì™¸ë¶€ì— ë”°ë¡œ ìƒì„±
-REM               23/04/16  1 age ì»¬ëŸ¼ ì‚­ì œ
+REM  SCRIPT ¿ëµµ : 
+REM  ÀÛ¼ºÀÚ      : 2360340009 ¹ÚÁØÇÏ
+REM  ÃÖÃÊÀÛ¼ºÀÏ   : 2023-06-03, 
+REM  ¼öÁ¤»çÇ×
+REM               23/06/03  1 insert, update, delete procedure ±¸Çö
+REM                         2 delete procedure ³»ºÎ¿¡ trigger ±¸ÇöÇÏ¿´´Ù°¡ ºñÈ¿À²ÀûÀÌ¶ó ÆÇ´ÜÇÏ¿© ¿ÜºÎ¿¡ µû·Î »ı¼º
+REM               23/04/16  1 age ÄÃ·³ »èÁ¦
 REM  *********************************************************************************************************** 
 
 --------------------------------------------------------------------------------
---  ê³ ê°(CUSTOMER) ê´€ë¦¬ íŒ¨í‚¤ì§€ Header
---    body ëª…ì„¸
---    íšŒì›ê°€ì… insert_cust
---    íšŒì›íƒˆí‡´ delete_cust
---    íšŒì›ì •ë³´ ë³€ê²½ update_cust
+--  °í°´(CUSTOMER) °ü¸® ÆĞÅ°Áö Header
+--    body ¸í¼¼
+--    È¸¿ø°¡ÀÔ insert_cust
+--    È¸¿øÅ»Åğ delete_cust
+--    È¸¿øÁ¤º¸ º¯°æ update_cust
 --------------------------------------------------------------------------------
 create or replace package p_customer_mng
 as
-    -- customer ì •ë³´ insert procedure
+    -- customer Á¤º¸ insert procedure
     procedure insert_cust(
         p_id varchar2, p_pwd varchar2, p_name varchar2, p_zipcode varchar2, 
         p_address1 varchar2, p_address2 varchar2, p_mobile_no varchar2,
         p_phone_no varchar2, p_credit_limit number, p_email varchar2,
         p_account_mgr number, p_birth_dt date, p_enroll_dt date, p_gender varchar2
     );
-    -- customer ì‚­ì œ procedure
+    -- customer »èÁ¦ procedure
     procedure delete_cust(
         p_id varchar2
     );
@@ -67,24 +67,24 @@ as
         p_id, p_pwd, p_name, p_zipcode, p_address1, p_address2, p_mobile_no,
         p_phone_no, p_credit_limit, p_email,p_account_mgr, p_birth_dt, p_enroll_dt, p_gender
         );
-        -- íšŒì› ê°€ì… í›„ ì˜¤ë¥˜ê°€ ì—†ìœ¼ë©´ ì¦‰ì‹œ ì»¤ë°‹
+        -- È¸¿ø °¡ÀÔ ÈÄ ¿À·ù°¡ ¾øÀ¸¸é Áï½Ã Ä¿¹Ô
         commit;
     exception
-        -- ì¤‘ë³µ ê°’ì— ëŒ€í•œ ì˜ˆì™¸ í•¸ë“¤ë§
+        -- Áßº¹ °ª¿¡ ´ëÇÑ ¿¹¿Ü ÇÚµé¸µ
         when dup_val_on_index then
-        raise_application_error(-20001, 'ê³ ê° IDê°€ ì¤‘ë³µì…ë‹ˆë‹¤');
+        raise_application_error(-20001, '°í°´ ID°¡ Áßº¹ÀÔ´Ï´Ù');
     end insert_cust;
 
     procedure update_cust(
-    -- not null ì œì•½ì‚¬í•­ì´ ìˆëŠ” id, pwd, nameì€ ë§¤ê°œë³€ìˆ˜ë¥¼ ì§€ì •í•˜ê³ , ê·¸ ì™¸ì˜ ì»¬ëŸ¼ì€ default nullë¡œ í•˜ì—¬ updateê°€ í•„ìš”í•œ ì»¬ëŸ¼ ì™¸ì—ëŠ” ì“°ì§€ ì•Šì•„ë„ ë¨
+    -- not null Á¦¾à»çÇ×ÀÌ ÀÖ´Â id, pwd, nameÀº ¸Å°³º¯¼ö¸¦ ÁöÁ¤ÇÏ°í, ±× ¿ÜÀÇ ÄÃ·³Àº default null·Î ÇÏ¿© update°¡ ÇÊ¿äÇÑ ÄÃ·³ ¿Ü¿¡´Â ¾²Áö ¾Ê¾Æµµ µÊ
         p_id varchar2, p_pwd varchar2, p_name varchar2, p_zipcode varchar2 default null, 
         p_address1 varchar2 default null, p_address2 varchar2 default null, p_mobile_no varchar2 default null,
         p_phone_no varchar2 default null, p_credit_limit number default null, p_email varchar2 default null,
         p_account_mgr number default null, p_birth_dt date default null, p_enroll_dt date default null, p_gender varchar2 default null
         )
     is
-        v_customer customer%rowtype;  -- private ë³€ìˆ˜ ì„ ì–¸
-        -- ì—…ë°ì´íŠ¸ë¥¼ ìœ„í•œ id ê²€ìƒ‰ cursor
+        v_customer customer%rowtype;  -- private º¯¼ö ¼±¾ğ
+        -- ¾÷µ¥ÀÌÆ®¸¦ À§ÇÑ id °Ë»ö cursor
         cursor customer_cur is
             select *
             from customer
@@ -95,7 +95,7 @@ as
         fetch customer_cur into v_customer;
 
         if customer_cur%found then
-            -- ê³ ê°ì´ ìˆìœ¼ë©´ update ì§„í–‰
+            -- °í°´ÀÌ ÀÖÀ¸¸é update ÁøÇà
             update customer
             set 
                 id = p_id,
@@ -115,7 +115,7 @@ as
             where id = p_id;
             commit;
         else
-            raise_application_error(-20002, 'ì¡´ì¬í•˜ì§€ ì•ŠëŠ” ê³ ê° IDì…ë‹ˆë‹¤');
+            raise_application_error(-20002, 'Á¸ÀçÇÏÁö ¾Ê´Â °í°´ IDÀÔ´Ï´Ù');
         end if;
     
         close customer_cur;
@@ -126,47 +126,47 @@ as
             raise;
     end update_cust;
 
-    -- delete_cust í”„ë¡œì‹œì €
+    -- delete_cust ÇÁ·Î½ÃÀú
     procedure delete_cust(p_id varchar2) 
     is
     begin
-        -- CUSTOMER í…Œì´ë¸”ì—ì„œ pkì¸ idë¥¼ ê¸°ì¤€ìœ¼ë¡œ ê³ ê° ì •ë³´ë¥¼ ì‚­ì œ
+        -- CUSTOMER Å×ÀÌºí¿¡¼­ pkÀÎ id¸¦ ±âÁØÀ¸·Î °í°´ Á¤º¸¸¦ »èÁ¦
         delete from customer where id = p_id;
         
-        -- SQL ì„ íƒì, ì‚­ì œí•˜ë ¤ëŠ” idê°€ ì—†ìœ¼ë©´ ì˜ˆì™¸ ì²˜ë¦¬
+        -- SQL ¼±ÅÃÀÚ, »èÁ¦ÇÏ·Á´Â id°¡ ¾øÀ¸¸é ¿¹¿Ü Ã³¸®
         if SQL%ROWCOUNT = 0 then
-            raise_application_error(-20001, 'ì‚­ì œí•˜ë ¤ëŠ” ê³ ê° IDê°€ ì¡´ì¬í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤');
+            raise_application_error(-20001, '»èÁ¦ÇÏ·Á´Â °í°´ ID°¡ Á¸ÀçÇÏÁö ¾Ê½À´Ï´Ù');
         end if;
         -- 
         commit;
 
     exception
         when others then
-            -- ì˜ˆì™¸ ë°œìƒì‹œ ë¡¤ë°±ì„ ìˆ˜í–‰í•˜ê³ , ë°œìƒí•œ ì˜ˆì™¸ë¥¼ ë‹¤ì‹œ ë˜ì§€ê¸°
+            -- ¿¹¿Ü ¹ß»ı½Ã ·Ñ¹éÀ» ¼öÇàÇÏ°í, ¹ß»ıÇÑ ¿¹¿Ü¸¦ ´Ù½Ã ´øÁö±â
             rollback;
             raise;
     end delete_cust;    
 
 end p_customer_mng;
 /
---log í…Œì´ë¸” ìƒì„±
+--log Å×ÀÌºí »ı¼º
 create table exception_log
 (
-    log_date varchar2(10) default to_char(sysdate, 'YYYY-MM-DD'), -- ë¡œê·¸ ì¼ì
-    log_time varchar2(10) default to_char(sysdate, 'HH24-MI-SS'), -- ë¡œê·¸ ì‹œê°„
-    program_name varchar2(100), -- exception í”„ë¡œê·¸ë¨
-    error_message varchar2(250), -- exception ë©”ì„¸ì§€
-    description varchar2(250) -- ì„¤ëª…
+    log_date varchar2(10) default to_char(sysdate, 'YYYY-MM-DD'), -- ·Î±× ÀÏÀÚ
+    log_time varchar2(10) default to_char(sysdate, 'HH24-MI-SS'), -- ·Î±× ½Ã°£
+    program_name varchar2(100), -- exception ÇÁ·Î±×·¥
+    error_message varchar2(250), -- exception ¸Ş¼¼Áö
+    description varchar2(250) -- ¼³¸í
 );
 
--- log ì‘ì„± procedure
+-- log ÀÛ¼º procedure
 create or replace procedure
     write_log(a_program_name in varchar2, a_error_message in varchar2, a_description in varchar2)
 as  
-    -- autonomous transaction ì •ì˜
+    -- autonomous transaction Á¤ÀÇ
     pragma autonomous_transaction;
 begin
-    -- exceptionì„ log í…Œì´ë¸”ì— ê¸°ë¡
+    -- exceptionÀ» log Å×ÀÌºí¿¡ ±â·Ï
     insert into exception_log(program_name, error_message, description)
     values(a_program_name, a_error_message, a_description);
     commit;
@@ -176,7 +176,7 @@ exception
 end;
 /
 ---------------------------------------------
--- old_customer í…Œì´ë¸” ìƒì„±
+-- old_customer Å×ÀÌºí »ı¼º
 drop table old_customer;
 create table old_customer
 as
@@ -185,7 +185,7 @@ as
     where 1 = 0;
 select * from old_customer;
 
--- íšŒì›íƒˆí‡´ì‹œ ìë™ìœ¼ë¡œ trigger ì‚¬ìš©
+-- È¸¿øÅ»Åğ½Ã ÀÚµ¿À¸·Î trigger »ç¿ë
 create or replace trigger trg_delete_cust
 before delete on customer
 for each row
@@ -205,8 +205,8 @@ select * from customer where id = '11111111';
 desc customer;
 select * from user_constraints where table_name = 'CUSTOMER';
 set serveroutput on;
--- insert update delete í™•ì¸ ì½”ë“œ
--- ë°ì´í„° ì‚½ì…
+-- insert update delete È®ÀÎ ÄÚµå
+-- µ¥ÀÌÅÍ »ğÀÔ
 DECLARE
   p_id          customer.id%type := '11111111';
   p_pwd         customer.pwd%type := 'test_pwd';
@@ -224,15 +224,15 @@ DECLARE
   p_gender      customer.gender%type := 'M';
 BEGIN
   p_customer_mng.insert_cust(p_id, p_pwd, p_name, p_zipcode, p_address1, p_address2, p_mobile_no, p_phone_no, p_credit_limit, p_email, p_account_mgr, p_birth_dt, p_enroll_dt, p_gender);
-  DBMS_OUTPUT.PUT_LINE('ì¶”ê°€ ì™„ë£Œ');
+  DBMS_OUTPUT.PUT_LINE('Ãß°¡ ¿Ï·á');
 EXCEPTION
   WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('ì¶”ê°€ ì˜¤ë¥˜: ' || SQLERRM);
+    DBMS_OUTPUT.PUT_LINE('Ãß°¡ ¿À·ù: ' || SQLERRM);
 END;
 /
 
 select * from customer where id = '11111111';
--- ë°ì´í„° ìˆ˜ì •
+-- µ¥ÀÌÅÍ ¼öÁ¤
 DECLARE
   p_id          customer.id%type := '11111111';
   p_pwd         customer.pwd%type := 'updated_pwd';
@@ -240,20 +240,20 @@ DECLARE
   p_zipcode     customer.zipcode%type := 'zip';
 BEGIN
   p_customer_mng.update_cust(p_id, p_pwd, p_name, p_zipcode);
-  DBMS_OUTPUT.PUT_LINE('ìˆ˜ì • ì™„ë£Œ');
+  DBMS_OUTPUT.PUT_LINE('¼öÁ¤ ¿Ï·á');
 EXCEPTION
   WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('ìˆ˜ì • ì˜¤ë¥˜: ' || SQLERRM);
+    DBMS_OUTPUT.PUT_LINE('¼öÁ¤ ¿À·ù: ' || SQLERRM);
 END;
 /
 
 select * from customer where id = '11111111';
--- ë°ì´í„° ì‚­ì œ
+-- µ¥ÀÌÅÍ »èÁ¦
 DECLARE
   p_id          customer.id%type := '11111111';
 BEGIN
   p_customer_mng.delete_cust(p_id);
-  DBMS_OUTPUT.PUT_LINE('ì‚­ì œ ì™„ë£Œ');
+  DBMS_OUTPUT.PUT_LINE('»èÁ¦ ¿Ï·á');
 END;
 /
 ----------------------------------------------------
