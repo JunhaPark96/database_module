@@ -1,5 +1,3 @@
-select * from customer;
-
 -- 회원관리하는 procedure 3가지
 -- 정보처리 cursor 생성
 -- 회원 탈퇴 trigger -> old_customer 테이블 생성
@@ -72,7 +70,11 @@ as
     exception
         -- 중복 값에 대한 예외 핸들링
         when dup_val_on_index then
-        raise_application_error(-20001, '고객 ID가 중복입니다');
+            write_log('insert_cust', 'ID 중복 발생', sqlerrm);
+            raise_application_error(-20001, '고객 ID가 중복입니다');
+        when others then
+            write_log('insert_cust', '가입 중 오류발생', sqlerrm);
+            dbms_output.put_line('회원 가입 중 오류: ' || sqlerrm);
     end insert_cust;
 
     procedure update_cust(
@@ -122,6 +124,7 @@ as
     
     exception
         when others then
+            write_log('update_cust', '갱신 중 오류발생', sqlerrm);
             rollback;
             raise;
     end update_cust;
@@ -135,13 +138,17 @@ as
         
         -- SQL 선택자, 삭제하려는 id가 없으면 예외 처리
         if SQL%ROWCOUNT = 0 then
+            -- raise error 보다 아래에 위치하면 log 작성 불가
+            write_log('delete_cust', '[삭제] ID 존재 X', sqlerrm);
             raise_application_error(-20001, '삭제하려는 고객 ID가 존재하지 않습니다');
         end if;
         -- 
         commit;
 
     exception
+        
         when others then
+            write_log('delete_cust', '삭제 중 오류발생', sqlerrm);
             -- 예외 발생시 롤백을 수행하고, 발생한 예외를 다시 던지기
             rollback;
             raise;
@@ -150,6 +157,7 @@ as
 end p_customer_mng;
 /
 --log 테이블 생성
+drop table exception_log;
 create table exception_log
 (
     log_date varchar2(10) default to_char(sysdate, 'YYYY-MM-DD'), -- 로그 일자
@@ -172,6 +180,7 @@ begin
     commit;
 exception
     when others then
+        dbms_output.put_line('로그 기록 오류 발생 ' || sqlerrm);
     null;
 end;
 /
@@ -211,7 +220,7 @@ DECLARE
   p_id          customer.id%type := '11111111';
   p_pwd         customer.pwd%type := 'test_pwd';
   p_name        customer.name%type := 'test_name';
-  p_zipcode     customer.zipcode%type := 'zop';
+  p_zipcode     customer.zipcode%type := 'zopd';
   p_address1    customer.address1%type := 'test_addr1';
   p_address2    customer.address2%type := 'test_addr2';
   p_mobile_no   customer.mobile_no%type := '1234567890';
@@ -225,9 +234,9 @@ DECLARE
 BEGIN
   p_customer_mng.insert_cust(p_id, p_pwd, p_name, p_zipcode, p_address1, p_address2, p_mobile_no, p_phone_no, p_credit_limit, p_email, p_account_mgr, p_birth_dt, p_enroll_dt, p_gender);
   DBMS_OUTPUT.PUT_LINE('추가 완료');
-EXCEPTION
-  WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('추가 오류: ' || SQLERRM);
+--EXCEPTION
+--  WHEN OTHERS THEN
+--    DBMS_OUTPUT.PUT_LINE('추가 오류: ' || SQLERRM);
 END;
 /
 
@@ -237,7 +246,7 @@ DECLARE
   p_id          customer.id%type := '11111111';
   p_pwd         customer.pwd%type := 'updated_pwd';
   p_name        customer.name%type := 'updated_name';
-  p_zipcode     customer.zipcode%type := 'zip';
+  p_zipcode     customer.zipcode%type := 'zipzzzzzzzzzz';
 BEGIN
   p_customer_mng.update_cust(p_id, p_pwd, p_name, p_zipcode);
   DBMS_OUTPUT.PUT_LINE('수정 완료');
@@ -257,3 +266,4 @@ BEGIN
 END;
 /
 ----------------------------------------------------
+select * from exception_log;
