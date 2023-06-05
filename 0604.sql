@@ -12,6 +12,7 @@ REM  수정사항
 REM               23/06/03  1 insert, update, delete procedure 구현
 REM                         2 delete procedure 내부에 trigger 구현하였다가 비효율적이라 판단하여 외부에 따로 생성
 REM               23/06/04  1 write_log 작성. 각 procedure에 예외 처리
+REM               23/06/04  2 trg_delete_cust procedure내의 autonomous transaction 삭제 - delete연산이 실패해도 old_customer에 데이터가 삽입될 수 있기 때문
 REM  *********************************************************************************************************** 
 
 --------------------------------------------------------------------------------
@@ -55,6 +56,9 @@ as
         p_account_mgr number, p_birth_dt date, p_enroll_dt date, p_gender varchar2
     )
     is
+        v_coupon_code varchar2(20);
+        v_current_month number;
+        v_birth_month number;
     begin
         -- insert into customer table
         insert into customer(
@@ -65,17 +69,36 @@ as
         p_id, p_pwd, p_name, p_zipcode, p_address1, p_address2, p_mobile_no,
         p_phone_no, p_credit_limit, p_email,p_account_mgr, p_birth_dt, p_enroll_dt, p_gender
         );
+        
+        -- 회원가입을 하면 생일달인 고객에게 쿠폰은 주는 이벤트를 진행.
+        v_current_month := to_number(to_char(sysdate, 'MM'));
+        v_birth_month := to_number(to_char(p_birth_dt, 'MM'));
+        
+        if v_current_month = v_birth_month then
+            -- 쿠폰 코드는 'BIRTHDAY_' + 고객 ID
+            v_coupon_code := 'BIRTHDAY_' || p_id;
+            -- 해당 id의 고객에게 쿠폰 지급
+            insert into birthday_coupons(id, coupon_code, coupon_date)
+            values (p_id, v_coupon_code, sysdate);
+        end if;
         -- 회원 가입 후 오류가 없으면 즉시 커밋
         commit;
     exception
-         -- 중복 값에 대한 예외 핸들링
+         -- 중복 값에 대한 prefix 예외 핸들링
         when dup_val_on_index then
             write_log('insert_cust', 'ID 중복 발생', sqlerrm);
+            -- 사용자 정의함수 -20001~-20999
             raise_application_error(-20001, '고객 ID 중복');
         -- 입력값 제약사항에 대한 예외 핸들링 추가
         when value_error then
             write_log('insert_cust', '데이터 형식 오류', sqlerrm);
             raise_application_error(-20003, '데이터 형식 오류');
+        when no_data_found then
+            write_log('insert_cust', '데이터 없음 오류', sqlerrm);
+            raise_application_error(-20004, '데이터 없음 오류');
+        when too_many_rows then
+            write_log('insert_cust', '데이터 과다 오류', sqlerrm);
+            raise_application_error(-20005, '데이터 과다 오류');
         when others then
             write_log('insert_cust', '가입 중 오류발생', sqlerrm);
             dbms_output.put_line('회원 가입 중 오류: ' || sqlerrm);
@@ -91,6 +114,7 @@ as
     is
         v_customer customer%rowtype;  -- private 변수 선언
         -- 업데이트를 위한 id 검색 cursor
+        -- insert에서는 기존 값을 참조할 필요가 없고, delete procedure에서는 rowcount 커서 속성을 사용하기 때문에 update procedure에서만 cursor 사용
         cursor customer_cur is
             select *
             from customer
@@ -207,7 +231,10 @@ select * from old_customer;
 -- 회원탈퇴시 자동으로 trigger 사용
 create or replace trigger trg_delete_cust
 before delete on customer
+-- 각 행의 삭제 이전에 old_customer 테이블에 데이터를 삽입하므로 row level 트리거 사용
 for each row
+--declare
+--    pragma autonomous_transaction; -- 트리거 독립 트랜잭션 설정 -> 삭제
 begin
     insert into old_customer values (
         :old.id, :old.pwd, :old.name, :old.zipcode,
@@ -218,27 +245,36 @@ begin
     );
 end;
 /
+-- insert 프로시저 비즈니스로직을 위한 쿠폰 테이블 생성
+CREATE TABLE birthday_coupons (
+  id VARCHAR2(20) NOT NULL,
+  coupon_code VARCHAR2(20),
+  coupon_date DATE,
+  CONSTRAINT pk_birthday_coupons PRIMARY KEY (id)
+);
+select * from birthday_coupons;
+--------------------------------------------------
+select * from customer;
 
-
-select * from customer where id = '11111111';
+select * from customer where id like '1111111%';
 desc customer;
 select * from user_constraints where table_name = 'CUSTOMER';
 set serveroutput on;
 -- insert update delete 확인 코드
 -- 데이터 삽입
 DECLARE
-  p_id          customer.id%type := '11111111';
+  p_id          customer.id%type := '11111118';
   p_pwd         customer.pwd%type := 'test_pwd';
   p_name        customer.name%type := 'test_name';
-  p_zipcode     customer.zipcode%type := 'zopd';
+  p_zipcode     customer.zipcode%type := 'zopdz';
   p_address1    customer.address1%type := 'test_addr1';
   p_address2    customer.address2%type := 'test_addr2';
-  p_mobile_no   customer.mobile_no%type := '1234567890';
+  p_mobile_no   customer.mobile_no%type := '01011114456';
   p_phone_no    customer.phone_no%type := '0987654321';
   p_credit_limit customer.credit_limit%type := 4000;
   p_email       customer.email%type := 'test@test.com';
   p_account_mgr customer.account_mgr%type := 7902;
-  p_birth_dt    customer.birth_dt%type := SYSDATE;
+  p_birth_dt    customer.birth_dt%type := to_date('1996/06/05', 'yyyy/mm/dd');
   p_enroll_dt   customer.enroll_dt%type := SYSDATE;
   p_gender      customer.gender%type := 'M';
 BEGIN
@@ -256,7 +292,7 @@ DECLARE
   p_id          customer.id%type := '11111111';
   p_pwd         customer.pwd%type := 'updated_pwd';
   p_name        customer.name%type := 'updated_name';
-  p_zipcode     customer.zipcode%type := 'zipzzzzzzzzzz';
+  p_zipcode     customer.zipcode%type := 'zipzzz';
 BEGIN
   p_customer_mng.update_cust(p_id, p_pwd, p_name, p_zipcode);
   DBMS_OUTPUT.PUT_LINE('수정 완료');
@@ -276,4 +312,5 @@ BEGIN
 END;
 /
 ----------------------------------------------------
-select * from exception_log;
+select * from old_customer;
+select * from exception_log order by log_date || log_time desc;
