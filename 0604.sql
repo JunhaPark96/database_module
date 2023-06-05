@@ -13,6 +13,7 @@ REM               23/06/03  1 insert, update, delete procedure 구현
 REM                         2 delete procedure 내부에 trigger 구현하였다가 비효율적이라 판단하여 외부에 따로 생성
 REM               23/06/04  1 write_log 작성. 각 procedure에 예외 처리
 REM               23/06/04  2 trg_delete_cust procedure내의 autonomous transaction 삭제 - delete연산이 실패해도 old_customer에 데이터가 삽입될 수 있기 때문
+REM               23/06/05  1 생일 쿠폰 발급 비즈니스 로직 추가
 REM  *********************************************************************************************************** 
 
 --------------------------------------------------------------------------------
@@ -45,17 +46,18 @@ as
 end p_customer_mng;
 /
 
-
 create or replace package body p_customer_mng
 as
     -- insert procedure
     procedure insert_cust(
+        -- customer 컬럼
         p_id varchar2, p_pwd varchar2, p_name varchar2, p_zipcode varchar2, 
         p_address1 varchar2, p_address2 varchar2, p_mobile_no varchar2,
         p_phone_no varchar2, p_credit_limit number, p_email varchar2,
         p_account_mgr number, p_birth_dt date, p_enroll_dt date, p_gender varchar2
     )
     is
+        -- 생일 테이블에 넣을 변수 정의
         v_coupon_code varchar2(20);
         v_current_month number;
         v_birth_month number;
@@ -81,7 +83,8 @@ as
             insert into birthday_coupons(id, coupon_code, coupon_date)
             values (p_id, v_coupon_code, sysdate);
         end if;
-        -- 회원 가입 후 오류가 없으면 즉시 커밋
+        /* 회원 가입 후 오류가 없으면 즉시 커밋. 
+        회원가입시 DB에 바로 저장되는 것이 맞다고 생각하여 즉시 커밋*/
         commit;
     exception
          -- 중복 값에 대한 prefix 예외 핸들링
@@ -113,8 +116,12 @@ as
         )
     is
         v_customer customer%rowtype;  -- private 변수 선언
+        v_cur_month number := to_number(to_char(sysdate, 'MM')); -- 기존 고객 중 생일 달인 고객
+        
         -- 업데이트를 위한 id 검색 cursor
-        -- insert에서는 기존 값을 참조할 필요가 없고, delete procedure에서는 rowcount 커서 속성을 사용하기 때문에 update procedure에서만 cursor 사용
+        /* insert에서는 기존 값을 참조할 필요가 없고, delete procedure에서는 
+        rowcount 커서 속성을 사용하기 때문에 update procedure에서만 cursor 사용
+        */
         cursor customer_cur is
             select *
             from customer
@@ -144,10 +151,15 @@ as
                 gender = nvl(p_gender, v_customer.gender)
             where id = p_id;
             commit;
+            
+            -- 생일이 이번달인 경우, 생일 쿠폰 발행
+            if (to_number(to_char(nvl(p_birth_dt, v_customer.birth_dt), 'MM')) = v_cur_month) then
+                insert into birthday_coupons (id, coupon_code, coupon_date) values (p_id, 'BIRTHDAY_' || p_id, sysdate);
+                commit;
+            end if;
         else
             raise_application_error(-20002, '존재하지 않는 고객 ID');
-        end if;
-    
+        end if; 
         close customer_cur;
     
     exception
@@ -190,6 +202,7 @@ as
 
 end p_customer_mng;
 /
+-------------------------------------------------------
 --log 테이블 생성
 drop table exception_log;
 create table exception_log
@@ -200,7 +213,7 @@ create table exception_log
     error_message varchar2(250), -- exception 메세지
     description varchar2(250) -- 설명
 );
-
+----------------------------------------------------
 -- log 작성 procedure
 create or replace procedure
     write_log(a_program_name in varchar2, a_error_message in varchar2, a_description in varchar2)
@@ -227,7 +240,7 @@ as
     from customer
     where 1 = 0;
 select * from old_customer;
-
+-----------------------------------------------
 -- 회원탈퇴시 자동으로 trigger 사용
 create or replace trigger trg_delete_cust
 before delete on customer
@@ -245,16 +258,18 @@ begin
     );
 end;
 /
+----------------------------------------------------------
 -- insert 프로시저 비즈니스로직을 위한 쿠폰 테이블 생성
-CREATE TABLE birthday_coupons (
-  id VARCHAR2(20) NOT NULL,
-  coupon_code VARCHAR2(20),
-  coupon_date DATE,
-  CONSTRAINT pk_birthday_coupons PRIMARY KEY (id)
+drop table birthday_coupons;
+create table birthday_coupons (
+  id varchar2(20) not null,
+  coupon_code varchar2(20),
+  coupon_date date,
+  constraint pk_birthday_coupons primary key(id)
 );
 select * from birthday_coupons;
+SELECT * FROM all_tab_columns WHERE table_name = 'BIRTHDAY_COUPONS';
 --------------------------------------------------
-select * from customer;
 
 select * from customer where id like '1111111%';
 desc customer;
@@ -262,55 +277,98 @@ select * from user_constraints where table_name = 'CUSTOMER';
 set serveroutput on;
 -- insert update delete 확인 코드
 -- 데이터 삽입
-DECLARE
-  p_id          customer.id%type := '11111118';
+declare
+  p_id          customer.id%type := '11111119';
   p_pwd         customer.pwd%type := 'test_pwd';
   p_name        customer.name%type := 'test_name';
   p_zipcode     customer.zipcode%type := 'zopdz';
   p_address1    customer.address1%type := 'test_addr1';
   p_address2    customer.address2%type := 'test_addr2';
-  p_mobile_no   customer.mobile_no%type := '01011114456';
+  p_mobile_no   customer.mobile_no%type := '01011114457';
   p_phone_no    customer.phone_no%type := '0987654321';
   p_credit_limit customer.credit_limit%type := 4000;
   p_email       customer.email%type := 'test@test.com';
   p_account_mgr customer.account_mgr%type := 7902;
-  p_birth_dt    customer.birth_dt%type := to_date('1996/06/05', 'yyyy/mm/dd');
+  p_birth_dt    customer.birth_dt%type := to_date('1996/05/05', 'yyyy/mm/dd');
   p_enroll_dt   customer.enroll_dt%type := SYSDATE;
   p_gender      customer.gender%type := 'M';
-BEGIN
+begin
   p_customer_mng.insert_cust(p_id, p_pwd, p_name, p_zipcode, p_address1, p_address2, p_mobile_no, p_phone_no, p_credit_limit, p_email, p_account_mgr, p_birth_dt, p_enroll_dt, p_gender);
-  DBMS_OUTPUT.PUT_LINE('추가 완료');
---EXCEPTION
---  WHEN OTHERS THEN
---    DBMS_OUTPUT.PUT_LINE('추가 오류: ' || SQLERRM);
+  dbms_output.put_line('추가 완료');
 END;
 /
 
 select * from customer where id = '11111111';
 -- 데이터 수정
-DECLARE
+declare
   p_id          customer.id%type := '11111111';
   p_pwd         customer.pwd%type := 'updated_pwd';
   p_name        customer.name%type := 'updated_name';
   p_zipcode     customer.zipcode%type := 'zipzzz';
-BEGIN
+begin
   p_customer_mng.update_cust(p_id, p_pwd, p_name, p_zipcode);
-  DBMS_OUTPUT.PUT_LINE('수정 완료');
-EXCEPTION
-  WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('수정 오류: ' || SQLERRM);
-END;
+  dbms_output.put_line('수정 완료');
+end;
 /
 
 select * from customer where id = '11111111';
 -- 데이터 삭제
-DECLARE
+declare
   p_id          customer.id%type := '11111111';
-BEGIN
+begin
   p_customer_mng.delete_cust(p_id);
   DBMS_OUTPUT.PUT_LINE('삭제 완료');
-END;
+end;
 /
 ----------------------------------------------------
 select * from old_customer;
 select * from exception_log order by log_date || log_time desc;
+
+
+--------------------------------
+-- 아래 코드는 고객의 생일이 현재 달인 경우, 생일 쿠폰을 발행하며, 그렇지 않은 경우에는 생일 쿠폰을 발행하지 않음
+BEGIN
+  p_customer_mng.insert_cust(
+    p_id => 'test01', 
+    p_pwd => 'testpwd01', 
+    p_name => 'Test User', 
+    p_zipcode => '1234567', 
+    p_address1 => 'Test Address 1', 
+    p_address2 => 'Test Address 2', 
+    p_mobile_no => '010-1234-5678', 
+    p_phone_no => '02-123-4567', 
+    p_credit_limit => 5000, 
+    p_email => 'test01@email.com', 
+    p_account_mgr => 7902, 
+    p_birth_dt => TO_DATE('1990-06-01', 'YYYY-MM-DD'), 
+    p_enroll_dt => SYSDATE, 
+    p_gender => 'M'
+  );
+END;
+/
+
+-- 아래 코드는 해당 고객의 정보를 업데이트하며, 만약 고객의 생일이 현재 달인 경우 생일 쿠폰을 발행
+BEGIN
+  p_customer_mng.update_cust(
+    p_id => 'test01', 
+    p_pwd => 'updatedpwd01', 
+    p_name => 'Updated User', 
+    p_zipcode => '7654321', 
+    p_address1 => 'Updated Address 1', 
+    p_address2 => 'Updated Address 2', 
+    p_mobile_no => '010-8765-4321', 
+    p_phone_no => '02-765-4321', 
+    p_credit_limit => 4000, 
+    p_email => 'updated01@email.com', 
+    p_account_mgr => 7902, 
+    p_birth_dt => TO_DATE('1990-07-01', 'YYYY-MM-DD'), 
+    p_enroll_dt => SYSDATE, 
+    p_gender => 'F'
+  );
+END;
+/
+
+select * from customer where id = 'test01';
+select * from old_customer;
+select * from exception_log order by log_date || log_time desc;
+select * from birthday_coupons;
